@@ -3,20 +3,35 @@
 Interactive HTML visualizer for [neqo](https://github.com/mozilla/neqo)/QUIC
 `.sqlog` (qlog) files.
 
-`qvis.py` renders one or more `.sqlog` files into a self-contained HTML file
+`qvis` renders one or more `.sqlog` files into a self-contained HTML file
 with interactive plots (RTT, congestion window, bytes in flight, ssthresh,
-pacing rate, and more), using `qvis.js`/`qvis.html` as templates and
-[uPlot](https://github.com/leeoniya/uPlot) for rendering.
+pacing rate, and more), using bundled JS/HTML templates and
+[uPlot](https://github.com/leeoniya/uPlot) for rendering. No network access
+is required — uPlot is vendored into the package.
 
 ## Usage
 
 ```shell
-uv run qvis.py <file.sqlog> [...]
-uv run qvis.py --output-dir /tmp /path/to/*.sqlog
+uv run qvis <file.sqlog> [...]
+uv run qvis --output-dir /tmp /path/to/*.sqlog
 ```
 
-Requires network access on first run to fetch uPlot from a CDN (cached
-thereafter).
+Or install it with `pip install .` / `pipx install .` for a standalone
+`qvis` command.
+
+## Development
+
+```shell
+uv sync --group dev   # Python: ruff, ty, pytest
+npm install           # JS: biome (also vendors uPlot into src/qvis)
+
+uv run ruff check .
+uv run ruff format --check .
+uv run ty check
+uv run pytest
+
+npx biome ci .
+```
 
 ## License
 

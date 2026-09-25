@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - run: uv sync --group dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run ty check
+      - run: uv run pytest
+      - name: Smoke-test the built wheel in isolation
+        run: |
+          uv build
+          python3 -m venv /tmp/qvis-wheel-venv
+          /tmp/qvis-wheel-venv/bin/pip install dist/*.whl
+          /tmp/qvis-wheel-venv/bin/qvis --help
+          printf '{"trace":{"vantage_point":{"type":"client"}}}\x1e{"time":0.0,"name":"recovery:metrics_updated","data":{}}\x1e' > /tmp/smoke.sqlog
+          /tmp/qvis-wheel-venv/bin/qvis --output-dir /tmp/qvis-wheel-out /tmp/smoke.sqlog
+          grep -q "u-legend" /tmp/qvis-wheel-out/smoke.html
+          ! grep -q "__[A-Z_]*__" /tmp/qvis-wheel-out/smoke.html
+
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx biome ci .
+      - name: Check vendored uPlot is up to date
+        run: |
+          git diff --exit-code -- src/qvis/uPlot.iife.min.js src/qvis/uPlot.min.css src/qvis/uPlot-LICENSE || {
+            echo "::error::Vendored uPlot files are stale. Run 'npm install' and commit the result."
+            exit 1
+          }
