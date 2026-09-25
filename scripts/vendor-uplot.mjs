@@ -12,10 +12,17 @@ import { copyFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const src = `${root}node_modules/uplot/dist`;
+const uplot = `${root}node_modules/uplot`;
 const dest = `${root}src/qvis`;
 
-for (const name of ["uPlot.iife.min.js", "uPlot.min.css"]) {
-  copyFileSync(`${src}/${name}`, `${dest}/${name}`);
-  console.log(`vendored ${name}`);
+for (const name of [
+  "dist/uPlot.iife.min.js",
+  "dist/uPlot.min.css",
+  "LICENSE",
+]) {
+  const destName = name.startsWith("dist/")
+    ? name.slice("dist/".length)
+    : `uPlot-${name}`;
+  copyFileSync(`${uplot}/${name}`, `${dest}/${destName}`);
+  console.log(`vendored ${destName}`);
 }
