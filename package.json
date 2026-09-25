@@ -1,0 +1,18 @@
+{
+  "name": "qvis",
+  "private": true,
+  "license": "Apache-2.0 OR MIT",
+  "dependencies": {
+    "uplot": "1.6.32"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0"
+  },
+  "scripts": {
+    "vendor": "node scripts/vendor-uplot.mjs",
+    "postinstall": "npm run vendor",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "format:check": "biome format ."
+  }
+}

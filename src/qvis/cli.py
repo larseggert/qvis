@@ -1,19 +1,13 @@
-#!/usr/bin/env python3
 # Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 # http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 # <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 # option. This file may not be copied, modified, or distributed
 # except according to those terms.
-# /// script
-# requires-python = ">=3.10"
-# ///
 """Visualize neqo .sqlog files as interactive HTML.
 
-Requires network access on first run to fetch uPlot from CDN (cached thereafter).
-
 Usage:
-    uv run test/qvis.py <file.sqlog> [...]
-    uv run test/qvis.py --output-dir /tmp /path/to/*.sqlog
+    uv run qvis <file.sqlog> [...]
+    uv run qvis --output-dir /tmp /path/to/*.sqlog
 """
 
 from __future__ import annotations
@@ -25,14 +19,10 @@ import html
 import json
 import re
 import sys
-import urllib.request
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
-
-UPLOT_JS_URL = "https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.iife.min.js"
-UPLOT_CSS_URL = "https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.min.css"
 
 METRIC_FIELDS = (
     "min_rtt",
@@ -134,6 +124,7 @@ def extract(  # noqa: C901  # pylint: disable=too-many-locals,too-many-branches,
     fc_conn_used: int = 0  # total stream bytes sent (connection-level FC)
     fc_stream_limit: dict[int | str, int] = {}  # int=stream_id, str=initial param key
     fc_stream_hwm: dict[int, int] = {}  # per-stream high-water mark (offset+length)
+
     def _append_conn_budget(t: float) -> None:
         budget = max(0, fc_conn_limit - fc_conn_used)
         data.fc_conn_budget_t.append(t)
@@ -274,7 +265,8 @@ def extract(  # noqa: C901  # pylint: disable=too-many-locals,too-many-branches,
             for pn in pns:
                 data.acked_t.append(ack_seq(t))
                 data.acked_pn.append(pn)
-                data.ack_ranges[pn] = new_ranges  # shared ref — dedup in data_to_json uses id()
+                # shared ref — dedup in data_to_json uses id()
+                data.ack_ranges[pn] = new_ranges
                 if rpn is not None:
                     data.ack_recv_pn[pn] = rpn
                 if pn not in acked_pns:
@@ -333,7 +325,7 @@ def data_to_json(data: TraceData) -> str:  # noqa: PLR0914
         cc.append([t, tr[i + 1][0] if i + 1 < len(tr) else data.max_t, s])
 
     loss_by_trigger: dict[str, tuple[list[float], list[int]]] = {}
-    for t, pn, trig in zip(data.lost_t, data.lost_pn, data.lost_trigger):
+    for t, pn, trig in zip(data.lost_t, data.lost_pn, data.lost_trigger, strict=True):
         loss_by_trigger.setdefault(trig, ([], []))
         loss_by_trigger[trig][0].append(t)
         loss_by_trigger[trig][1].append(pn)
@@ -365,7 +357,7 @@ def data_to_json(data: TraceData) -> str:  # noqa: PLR0914
     # Compact pktMeta: stream-only packets (99%+) as [stream_id, offset, length, fin].
     # Other packets as full frame list (prefixed with null marker).
     pkt_meta: dict[str, Any] = {}
-    for pn, frames in zip(data.sent_pn, data.sent_frames):
+    for pn, frames in zip(data.sent_pn, data.sent_frames, strict=True):
         if len(frames) == 1 and frames[0].get("frame_type") == "stream":
             fr = frames[0]
             pkt_meta[str(pn)] = [
@@ -407,15 +399,6 @@ def data_to_json(data: TraceData) -> str:  # noqa: PLR0914
     )
 
 
-@lru_cache
-def _fetch(url: str) -> str:
-    try:
-        with urllib.request.urlopen(url, timeout=10) as resp:  # noqa: S310
-            return resp.read().decode()
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        raise RuntimeError(f"Failed to fetch {url}: {e}") from e
-
-
 _DIR = Path(__file__).parent
 
 
@@ -423,15 +406,16 @@ _DIR = Path(__file__).parent
 def _template() -> str:
     html_tmpl = (_DIR / "qvis.html").read_text(encoding="utf-8")
     js = (_DIR / "qvis.js").read_text(encoding="utf-8")
-    return html_tmpl.replace("__QVIS_JS__", js)
+    css = (_DIR / "qvis.css").read_text(encoding="utf-8")
+    return html_tmpl.replace("__QVIS_JS__", js).replace("/*__QVIS_CSS__*/", css)
 
 
 def generate_html(data: TraceData) -> str:
     data_b64 = base64.b64encode(gzip.compress(data_to_json(data).encode())).decode()
     subs = {
         "__TITLE__": html.escape(data.title),
-        "__UPLOT_CSS__": _fetch(UPLOT_CSS_URL),
-        "__UPLOT_JS__": _fetch(UPLOT_JS_URL),
+        "/*__UPLOT_CSS__*/": (_DIR / "uPlot.min.css").read_text(encoding="utf-8"),
+        "__UPLOT_JS__": (_DIR / "uPlot.iife.min.js").read_text(encoding="utf-8"),
         "__DATA_B64GZ__": data_b64,
     }
     return re.compile("|".join(re.escape(k) for k in subs)).sub(
@@ -464,9 +448,7 @@ def main() -> None:
                 continue
             vp = header.get("trace", {}).get("vantage_point", {})
             is_server = vp.get("type") == "server"
-            data = extract(
-                events, args.title or Path(path).name, is_server=is_server
-            )
+            data = extract(events, args.title or Path(path).name, is_server=is_server)
             Path(output).write_text(generate_html(data), encoding="utf-8")
             print(output)
         except Exception as e:  # pylint: disable=broad-exception-caught
