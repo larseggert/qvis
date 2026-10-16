@@ -6,7 +6,7 @@
     "uplot": "1.6.32"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.2.0"
+    "@biomejs/biome": "^2.5.15"
   },
   "scripts": {
     "vendor": "node scripts/vendor-uplot.mjs",
