@@ -13,6 +13,6 @@ permissions:
 jobs:
   dependency-review:
     if: github.event_name == 'pull_request'
-    uses: mozilla/actions/.github/workflows/dependency-review.yml@32d84c77ea1bb513afbd253f94f67ae138b7d8be # v2.0.10
+    uses: mozilla/actions/.github/workflows/dependency-review.yml@42622e57e54d96514373f5234c0220b014e64740 # v3.1.1
     permissions:
       contents: read
